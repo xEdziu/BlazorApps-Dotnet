@@ -1,0 +1,89 @@
+﻿@page "/movies/create"
+@using Microsoft.EntityFrameworkCore
+@using BlazorMoviesProject.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+
+<PageTitle>Create</PageTitle>
+
+<h1>Create</h1>
+
+<h2>Movie</h2>
+<hr />
+<div class="row">
+    <div class="col-md-4">
+        <EditForm method="post" Model="Movie" OnValidSubmit="AddMovie" FormName="create" Enhance>
+            <DataAnnotationsValidator />
+            <ValidationSummary class="text-danger" role="alert" />
+
+            <div class="mb-3">
+                <label for="title" class="form-label">Title:</label>
+                <InputText id="title" @bind-Value="Movie.Title" class="form-control" aria-required="true" />
+                <ValidationMessage For="() => Movie.Title" class="text-danger" />
+            </div>
+
+            <div class="mb-3">
+                <label for="year" class="form-label">Year:</label>
+                <InputNumber id="year" @bind-Value="Movie.Year" class="form-control" />
+                <ValidationMessage For="() => Movie.Year" class="text-danger" />
+            </div>
+
+            <div class="mb-3">
+                <label for="rating" class="form-label">Rating:</label>
+                <InputNumber id="rating" @bind-Value="Movie.Rating" class="form-control" />
+                <ValidationMessage For="() => Movie.Rating" class="text-danger" />
+            </div>
+
+            <div class="mb-3">
+                <label for="cover" class="form-label">Upload Cover Image:</label>
+                <InputFile OnChange="UploadImage" class="form-control" />
+                @if (!string.IsNullOrEmpty(UploadedFileName))
+                {
+                    <p>Uploaded file: @UploadedFileName</p>
+                }
+            </div>
+
+            <button type="submit" class="btn btn-primary">Create</button>
+        </EditForm>
+    </div>
+</div>
+
+<div>
+    <a href="/movies">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromForm]
+    private Movie Movie { get; set; } = new();
+
+    private IBrowserFile? UploadedFile;
+    private string? UploadedFileName;
+
+    private async Task UploadImage(InputFileChangeEventArgs e)
+    {
+        UploadedFile = e.File;
+
+        var fileName = Path.GetFileNameWithoutExtension(UploadedFile.Name) + "_" + Guid.NewGuid().ToString().Substring(0, 8) + Path.GetExtension(UploadedFile.Name);
+        var path = Path.Combine("wwwroot", "images", fileName);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        await using FileStream fs = new(path, FileMode.Create);
+        await UploadedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(fs);
+
+        Movie.CoverImagePath = "/images/" + fileName;
+        UploadedFileName = fileName;
+    }
+
+    private async Task AddMovie()
+    {
+        if (UploadedFile == null)
+        {
+            Movie.CoverImagePath = "/images/default.png"; // Set a default image if none is uploaded
+        }
+
+        DbContext.Movies.Add(Movie);
+        await DbContext.SaveChangesAsync();
+        NavigationManager.NavigateTo("/movies");
+    }
+}

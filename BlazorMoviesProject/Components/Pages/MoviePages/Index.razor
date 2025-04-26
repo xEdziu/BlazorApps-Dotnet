@@ -1,0 +1,98 @@
+﻿@page "/movies"
+@using Microsoft.EntityFrameworkCore
+@using Microsoft.AspNetCore.Components.QuickGrid
+@using BlazorMoviesProject.Data
+
+@implements IAsyncDisposable
+@inject ApplicationDbContext DbContext
+
+<PageTitle>Index</PageTitle>
+
+<h1>Index</h1>
+
+<div class="row mb-3">
+    <div class="col-md-6">
+        <div class="input-group">
+            <input type="text" class="form-control" placeholder="Wyszukaj po tytule..."
+                   @bind="searchTerm" @bind:event="oninput" @onkeyup="FilterMovies" />
+            <button class="btn btn-outline-secondary" type="button" @onclick="FilterMovies">
+                <i class="bi bi-search"></i> Szukaj
+            </button>
+        </div>
+    </div>
+    <div class="col-md-6 text-end">
+        <a href="movies/create" class="btn btn-primary">Create New</a>
+    </div>
+</div>
+
+<div class="grid-container">
+    <QuickGrid Class="table" Items="@filteredMovies" Pagination="@pagination" SortMode="SortMode.Single">
+        <PropertyColumn Property="movie => movie.Title" Title="Tytuł" Sortable="true" />
+        <PropertyColumn Property="movie => movie.Year" Title="Rok" Sortable="true" />
+        <PropertyColumn Property="movie => movie.Rating" Title="Ocena" Sortable="true" />
+        <PropertyColumn Property="movie => movie.CoverImagePath" Title="Obrazek" />
+
+        <TemplateColumn Context="movie">
+            <a href="@($"movies/edit?id={movie.Id}")">Edit</a> |
+            <a href="@($"movies/details?id={movie.Id}")">Details</a> |
+            <a href="@($"movies/delete?id={movie.Id}")">Delete</a>
+        </TemplateColumn>
+    </QuickGrid>
+
+    <Paginator State="@pagination" />
+</div>
+
+<style>
+    .grid-container {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+    }
+</style>
+
+@code {
+    private IQueryable<Movie> movies = default!;
+    private IQueryable<Movie> filteredMovies = default!;
+    private PaginationState pagination = new() { ItemsPerPage = 10 };
+    private string searchTerm = string.Empty;
+    private Timer? debounceTimer;
+
+    protected override void OnInitialized()
+    {
+        movies = DbContext.Movies.AsQueryable();
+        filteredMovies = movies;
+    }
+
+    private void FilterMovies()
+    {
+        debounceTimer?.Dispose();
+
+        debounceTimer = new Timer(_ =>
+        {
+            InvokeAsync(() =>
+            {
+                if (string.IsNullOrWhiteSpace(searchTerm))
+                {
+                    filteredMovies = movies;
+                }
+                else
+                {
+                    string searchTermLower = searchTerm.ToLower();
+                    filteredMovies = movies.Where(m =>
+                        m.Title.ToLower().Contains(searchTermLower));
+                }
+
+                pagination.SetCurrentPageIndexAsync(0);
+                StateHasChanged();
+            });
+        }, null, 300, Timeout.Infinite);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        debounceTimer?.Dispose();
+        return ValueTask.CompletedTask;
+    }
+}
+
+

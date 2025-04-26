@@ -1,0 +1,139 @@
+﻿@page "/movies/edit"
+@using Microsoft.EntityFrameworkCore
+@using BlazorMoviesProject.Data
+@inject ApplicationDbContext DbContext
+@inject NavigationManager NavigationManager
+
+<PageTitle>Edit</PageTitle>
+
+<h1>Edit</h1>
+
+<h2>Movie</h2>
+<hr />
+@if (Movie is null)
+{
+    <p><em>Loading...</em></p>
+}
+else
+{
+    <div class="row">
+        <div class="col-md-4">
+            <EditForm method="post" Model="Movie" OnValidSubmit="UpdateMovie" FormName="edit" Enhance>
+                <DataAnnotationsValidator />
+                <ValidationSummary role="alert" />
+                <input type="hidden" name="Movie.Id" value="@Movie.Id" />
+
+                <div class="mb-3">
+                    <label for="title" class="form-label">Title:</label>
+                    <InputText id="title" @bind-Value="Movie.Title" class="form-control" aria-required="true" />
+                    <ValidationMessage For="() => Movie.Title" class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="year" class="form-label">Year:</label>
+                    <InputNumber id="year" @bind-Value="Movie.Year" class="form-control" />
+                    <ValidationMessage For="() => Movie.Year" class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label for="rating" class="form-label">Rating:</label>
+                    <InputNumber id="rating" @bind-Value="Movie.Rating" class="form-control" />
+                    <ValidationMessage For="() => Movie.Rating" class="text-danger" />
+                </div>
+
+                <div class="mb-3">
+                    <label>Current Cover:</label><br />
+                    @if (!string.IsNullOrEmpty(Movie.CoverImagePath))
+                    {
+                        <img src="@Movie.CoverImagePath" alt="Current Cover" style="max-width: 300px; margin-bottom: 10px;" />
+                    }
+                </div>
+
+                <div class="mb-3">
+                    <label for="cover" class="form-label">Upload New Cover Image (optional):</label>
+                    <InputFile OnChange="UploadImage" class="form-control" />
+                    @if (!string.IsNullOrEmpty(UploadedFileName))
+                    {
+                        <p>Uploaded file: @UploadedFileName</p>
+                    }
+                </div>
+
+                <button type="submit" class="btn btn-primary">Save</button>
+            </EditForm>
+        </div>
+    </div>
+}
+
+<div>
+    <a href="/movies">Back to List</a>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    private int Id { get; set; }
+
+    [SupplyParameterFromForm]
+    private Movie? Movie { get; set; }
+
+    private IBrowserFile? UploadedFile;
+    private string? UploadedFileName;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Movie ??= await DbContext.Movies.FirstOrDefaultAsync(m => m.Id == Id);
+
+        if (Movie is null)
+        {
+            NavigationManager.NavigateTo("notfound");
+        }
+    }
+
+    private async Task UploadImage(InputFileChangeEventArgs e)
+    {
+        UploadedFile = e.File;
+
+        var fileName = Path.GetFileNameWithoutExtension(UploadedFile.Name) + "_" + Guid.NewGuid().ToString().Substring(0, 8) + Path.GetExtension(UploadedFile.Name);
+        var path = Path.Combine("wwwroot", "images", fileName);
+
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+
+        await using FileStream fs = new(path, FileMode.Create);
+        await UploadedFile.OpenReadStream(maxAllowedSize: 10 * 1024 * 1024).CopyToAsync(fs);
+
+        Movie!.CoverImagePath = "/images/" + fileName;
+        UploadedFileName = fileName;
+    }
+
+    private async Task UpdateMovie()
+    {
+        if (UploadedFile != null)
+        {
+            // Nowa okładka została załadowana — Movie.CoverImagePath już ustawione w UploadImage
+        }
+
+        DbContext.Attach(Movie!).State = EntityState.Modified;
+
+        try
+        {
+            await DbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateConcurrencyException)
+        {
+            if (!MovieExists(Movie!.Id))
+            {
+                NavigationManager.NavigateTo("notfound");
+            }
+            else
+            {
+                throw;
+            }
+        }
+
+        NavigationManager.NavigateTo("/movies");
+    }
+
+    private bool MovieExists(int id)
+    {
+        return DbContext.Movies.Any(e => e.Id == id);
+    }
+}
