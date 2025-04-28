@@ -2,9 +2,8 @@
 @using Microsoft.EntityFrameworkCore
 @using Microsoft.AspNetCore.Components.QuickGrid
 @using BlazorMoviesProject.Data
-
-@implements IAsyncDisposable
 @inject ApplicationDbContext DbContext
+@rendermode InteractiveServer
 
 <PageTitle>Index</PageTitle>
 
@@ -13,34 +12,47 @@
 <div class="row mb-3">
     <div class="col-md-6">
         <div class="input-group">
-            <input type="text" class="form-control" placeholder="Wyszukaj po tytule..."
-                   @bind="searchTerm" @bind:event="oninput" @onkeyup="FilterMovies" />
-            <button class="btn btn-outline-secondary" type="button" @onclick="FilterMovies">
-                <i class="bi bi-search"></i> Szukaj
+            <input type="text"
+                   class="form-control"
+                   placeholder="Wyszukaj po tytule..."
+                   @bind="searchTerm"
+                   @bind:event="oninput" />
+            <button class="btn btn-outline-secondary" type="button" @onclick="ResetMovies">
+                <i class="bi bi-x-circle"></i> Wyczyść filtr
             </button>
         </div>
     </div>
-    <div class="col-md-6 text-end">
-        <a href="movies/create" class="btn btn-primary">Create New</a>
-    </div>
+    <AuthorizeView>
+        <div class="col-md-6 text-end">
+            <a href="movies/create" class="btn btn-primary">Create New</a>
+        </div>
+    </AuthorizeView>
 </div>
 
 <div class="grid-container">
-    <QuickGrid Class="table" Items="@filteredMovies" Pagination="@pagination" SortMode="SortMode.Single">
+    <QuickGrid Class="table" Items="@FilteredMovies" Pagination="@pagination" SortMode="SortMode.Single">
         <PropertyColumn Property="movie => movie.Title" Title="Tytuł" Sortable="true" />
         <PropertyColumn Property="movie => movie.Year" Title="Rok" Sortable="true" />
         <PropertyColumn Property="movie => movie.Rating" Title="Ocena" Sortable="true" />
-        <PropertyColumn Property="movie => movie.CoverImagePath" Title="Obrazek" />
+
+        <TemplateColumn Title="Okładka">
+            <img src="@context.CoverImagePath" alt="Okładka filmu"
+                 style="max-width: 100px; max-height: 150px;"
+                 onerror="this.onerror=null; this.src='/images/default.png';" />
+        </TemplateColumn>
 
         <TemplateColumn Context="movie">
-            <a href="@($"movies/edit?id={movie.Id}")">Edit</a> |
-            <a href="@($"movies/details?id={movie.Id}")">Details</a> |
-            <a href="@($"movies/delete?id={movie.Id}")">Delete</a>
+            <AuthorizeView>
+                <a href="@($"movies/edit?id={movie.Id}")">Edit</a> |
+                <a href="@($"movies/delete?id={movie.Id}")">Delete</a> |
+            </AuthorizeView>
+            <a href="@($"movies/details?id={movie.Id}")">Details</a>
         </TemplateColumn>
     </QuickGrid>
 
     <Paginator State="@pagination" />
 </div>
+
 
 <style>
     .grid-container {
@@ -52,46 +64,28 @@
 
 @code {
     private IQueryable<Movie> movies = default!;
-    private IQueryable<Movie> filteredMovies = default!;
-    private PaginationState pagination = new() { ItemsPerPage = 10 };
+    private PaginationState pagination = new() { ItemsPerPage = 5 };
     private string searchTerm = string.Empty;
-    private Timer? debounceTimer;
 
     protected override void OnInitialized()
     {
         movies = DbContext.Movies.AsQueryable();
-        filteredMovies = movies;
     }
 
-    private void FilterMovies()
+    private IQueryable<Movie> FilteredMovies
     {
-        debounceTimer?.Dispose();
-
-        debounceTimer = new Timer(_ =>
+        get
         {
-            InvokeAsync(() =>
-            {
-                if (string.IsNullOrWhiteSpace(searchTerm))
-                {
-                    filteredMovies = movies;
-                }
-                else
-                {
-                    string searchTermLower = searchTerm.ToLower();
-                    filteredMovies = movies.Where(m =>
-                        m.Title.ToLower().Contains(searchTermLower));
-                }
-
-                pagination.SetCurrentPageIndexAsync(0);
-                StateHasChanged();
-            });
-        }, null, 300, Timeout.Infinite);
+            if (string.IsNullOrWhiteSpace(searchTerm))
+                return movies;
+            else
+                return movies.Where(m => m.Title.ToLower().Contains(searchTerm.ToLower()));
+        }
     }
 
-    public ValueTask DisposeAsync()
+    private void ResetMovies()
     {
-        debounceTimer?.Dispose();
-        return ValueTask.CompletedTask;
+        searchTerm = string.Empty;
     }
 }
 

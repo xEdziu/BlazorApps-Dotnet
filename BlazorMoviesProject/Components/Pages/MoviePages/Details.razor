@@ -6,6 +6,7 @@
 @inject ApplicationDbContext DbContext
 @inject NavigationManager NavigationManager
 @inject AuthenticationStateProvider AuthenticationStateProvider
+@rendermode InteractiveServer
 
 <PageTitle>Details</PageTitle>
 
@@ -36,7 +37,7 @@
         <AuthorizeView Context="authContext">
             <Authorized>
                 <h3>Add Your Review</h3>
-                <EditForm Model="newReview" OnValidSubmit="HandleAddReview">
+                <EditForm Model="newReview" OnValidSubmit="HandleAddReview" FormName="addReviewForm">
                     <DataAnnotationsValidator />
                     <ValidationSummary />
 
@@ -49,6 +50,9 @@
                         <label>Content:</label>
                         <InputTextArea @bind-Value="newReview.Content" class="form-control" />
                     </div>
+
+                    <input type="hidden" @bind="newReview.MovieId" />
+                    <input type="hidden" @bind="newReview.UserId" />
 
                     <button type="submit" class="btn btn-primary">Add Review</button>
                 </EditForm>
@@ -110,6 +114,7 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadMovie();
+        await InitializeNewReview();
     }
 
     private async Task LoadMovie()
@@ -125,10 +130,25 @@
         }
     }
 
+    private async Task InitializeNewReview()
+    {
+        if (movie != null && userId != null)
+        {
+            newReview = new Review
+            {
+                MovieId = movie.Id,
+                UserId = userId,
+                Rating = 0
+            };
+        }
+        await Task.CompletedTask;
+    }
+
     private async Task HandleAddReview()
     {
         if (userId == null || movie == null) return;
 
+        // Upewnij się, że wszystkie wymagane pola są ustawione
         newReview.Rating = (float)Math.Round(newReview.Rating * 2, MidpointRounding.AwayFromZero) / 2;
         newReview.UserId = userId;
         newReview.MovieId = movie.Id;
@@ -138,7 +158,8 @@
 
         await UpdateMovieRating(movie.Id);
 
-        newReview = new();
+        // Utwórz nową pustą recenzję
+        await InitializeNewReview();
         await LoadMovie();
     }
 

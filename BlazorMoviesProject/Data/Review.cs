@@ -17,8 +17,7 @@ namespace BlazorMoviesProject.Data
         [ForeignKey(nameof(Movie))]
         public int MovieId { get; set; }
 
-        [Required]
-        public Movie Movie { get; set; } = null!;
+        public Movie? Movie { get; set; }
 
         [Required]
         public string UserId { get; set; } = string.Empty;
